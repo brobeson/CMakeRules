@@ -1,3 +1,7 @@
+# cspell:ignore ARGN BUILDSYSTEMM endforeach endfunction endmacro
+
+# cmake_language(DEFER CALL message "Verifying CMake targets against rules")
+
 #[[
 the_target(<target> MAY_NOT DEPEND_ON ANYTHING)
 the_target(<target> MAY_NOT DEPEND_ON <target> [<target> [<target> ...] ])
@@ -28,10 +32,64 @@ function(the_target TARGET)
   endif()
 endfunction()
 
-function(_internal_does_target_depend_on)
+# function(_internal_does_target_depend_on)
+# endfunction()
+
+# the_target(supernovas.supernovas MAY_NOT DEPEND_ON ANYTHING)
+# the_target(supernovas.supernovas MAY_NOT DEPEND_ON julian_date_test)
+# no_target(EXCEPT julian_date_test MAY DEPEND_ON Boost::unit_test_framework)
+# all_targets(EXCEPT ".+_test" MATCH "supernovas\.+")
+
+include(CMakePrintHelpers)
+
+#[=[
+all_targets([EXCEPT <regex> [regex]] )
+#]=]
+function(all_targets)
+  cmake_parse_arguments(
+    arg
+    "MUST"
+    ""
+    "EXCEPT;MATCH"
+    ${ARGN}
+  )
+  if(NOT arg_MATCH)
+    message(send_error "all_targets() rule must have 'MATCH <regex>' arguments.")
+    return()
+  endif()
+  set(_ALL_TARGETS)
+  _get_all_targets("${CMAKE_SOURCE_DIR}")
+  cmake_print_variables(_ALL_TARGETS)
+  foreach(_REGEX IN LISTS arg_EXCEPT)
+    list(FILTER _ALL_TARGETS EXCLUDE REGEX "${_REGEX}")
+  endforeach()
+  foreach(_TARGET IN LISTS _ALL_TARGETS)
+    set(_TARGET_MATCHES false)
+    foreach(_REGEX IN LISTS arg_MATCH)
+      if (NOT _TARGET_MATCHES AND _TARGET MATCHES "${_REGEX}")
+        set(_TARGET_MATCHES true)
+      endif()
+    endforeach()
+    if(NOT _TARGET_MATCHES)
+      get_target_property(_SOURCE_DIR ${_TARGET} SOURCE_DIR)
+      message(WARNING "Target '${_TARGET}' does not meet name requirement. The target is defined in ${_SOURCE_DIR}")
+    endif()
+  endforeach()
 endfunction()
 
-the_target(supernovas.supernovas MAY_NOT DEPEND_ON ANYTHING)
-the_target(supernovas.supernovas MAY_NOT DEPEND_ON julian_date_test)
-no_target(EXCEPT julian_date_test MAY DEPEND_ON Boost::unit_test_framework)
-all_targets(EXCEPT ".+_test" MATCH "supernovas\.+")
+macro(_get_all_targets _DIRECTORY)
+# function(_get_all_targets _DIRECTORY)
+  # Get the targets defined in _DIRECTORY
+  get_directory_property(_TARGETS DIRECTORY "${_DIRECTORY}" BUILDSYSTEM_TARGETS)
+  cmake_print_variables(_DIRECTORY _TARGETS)
+  if(_TARGETS)
+    list(APPEND _ALL_TARGETS ${_TARGETS})
+  endif()
+
+  # Recurse into subdirectories.
+  get_directory_property(_SUBDIRECTORIES DIRECTORY "${_DIRECTORY}" SUBDIRECTORIES)
+  foreach(_SUBDIRECTORY IN LISTS _SUBDIRECTORIES)
+    _get_all_targets("${_SUBDIRECTORY}")
+  endforeach()
+# endfunction()
+endmacro()
