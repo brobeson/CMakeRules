@@ -50,16 +50,17 @@ function(all_targets)
     arg
     "MUST"
     ""
-    "EXCEPT;MATCH"
+    "EXCEPT;EXCEPT_IN;MATCH"
     ${ARGN}
   )
   if(NOT arg_MATCH)
     message(send_error "all_targets() rule must have 'MATCH <regex>' arguments.")
     return()
   endif()
+  list(TRANSFORM arg_EXCEPT_IN PREPEND "${CMAKE_SOURCE_DIR}/" REGEX "^[^/]")
   set(_ALL_TARGETS)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "rules")
   _get_all_targets("${CMAKE_SOURCE_DIR}")
-  cmake_print_variables(_ALL_TARGETS)
   foreach(_REGEX IN LISTS arg_EXCEPT)
     list(FILTER _ALL_TARGETS EXCLUDE REGEX "${_REGEX}")
   endforeach()
@@ -78,18 +79,26 @@ function(all_targets)
 endfunction()
 
 macro(_get_all_targets _DIRECTORY)
-# function(_get_all_targets _DIRECTORY)
   # Get the targets defined in _DIRECTORY
-  get_directory_property(_TARGETS DIRECTORY "${_DIRECTORY}" BUILDSYSTEM_TARGETS)
-  cmake_print_variables(_DIRECTORY _TARGETS)
-  if(_TARGETS)
-    list(APPEND _ALL_TARGETS ${_TARGETS})
-  endif()
-
-  # Recurse into subdirectories.
-  get_directory_property(_SUBDIRECTORIES DIRECTORY "${_DIRECTORY}" SUBDIRECTORIES)
-  foreach(_SUBDIRECTORY IN LISTS _SUBDIRECTORIES)
-    _get_all_targets("${_SUBDIRECTORY}")
+  set(_SHOULD_SKIP false)
+  foreach(EXCEPT IN LISTS arg_EXCEPT_IN)
+    if("${_DIRECTORY}" MATCHES "^${EXCEPT}")
+      set(_SHOULD_SKIP true)
+    endif()
   endforeach()
-# endfunction()
+  if(_SHOULD_SKIP)
+    message(STATUS "Skipping ${_DIRECTORY}")
+  else()
+    message(STATUS "Scanning ${_DIRECTORY}")
+    get_directory_property(_TARGETS DIRECTORY "${_DIRECTORY}" BUILDSYSTEM_TARGETS)
+    if(_TARGETS)
+      list(APPEND _ALL_TARGETS ${_TARGETS})
+    endif()
+
+    # Recurse into subdirectories.
+    get_directory_property(_SUBDIRECTORIES DIRECTORY "${_DIRECTORY}" SUBDIRECTORIES)
+    foreach(_SUBDIRECTORY IN LISTS _SUBDIRECTORIES)
+      _get_all_targets("${_SUBDIRECTORY}")
+    endforeach()
+  endif()
 endmacro()
